@@ -34,3 +34,7 @@ body{
     max-width: 1200px;
   }
 }
+
+section{
+  padding: 3rem 1rem
+}
