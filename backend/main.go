@@ -4,13 +4,14 @@ import (
 	"bufio"
 	"context"
 	"encoding/csv"
+	"time"
+
 	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
@@ -44,15 +45,8 @@ func initDB() {
 		log.Fatalf("Failed to connect to MongoDB: %v\n", err)
 	}
 
-	// Ensure disconnection when done
-	defer func() {
-		if err := client.Disconnect(context.TODO()); err != nil {
-			log.Fatalf("Failed to disconnect from MongoDB: %v\n", err)
-		}
-	}()
-
 	// Get the collection
-	collection := client.Database("recordlookup").Collection("domains")
+	collection = client.Database("recordlookup").Collection("domains")
 	if collection == nil {
 		log.Fatal("Failed to get collection 'domains'")
 	}
@@ -103,10 +97,11 @@ func searchKeyword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filter := bson.D{{"txtrecords", bson.M{"$regex": keyword}}}
+	filter := bson.M{"txtRecords": bson.M{"$regex": keyword}}
 
 	cursor, err := collection.Find(context.TODO(), filter)
 	if err != nil {
+		fmt.Println(err)
 		http.Error(w, "Error querying database", http.StatusInternalServerError)
 		return
 	}
