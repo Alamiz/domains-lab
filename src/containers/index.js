@@ -1,0 +1,5 @@
+export { default as Header } from './header/Header'
+export { default as Footer } from './footer/Footer'
+export { default as FileUpload } from './fileUpload/FileUpload'
+export { default as FileDownload } from './fileDownload/FileDownload'
+export { default as HowItWorks } from './howItWorks/HowItWorks'
