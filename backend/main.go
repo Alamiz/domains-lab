@@ -3,12 +3,14 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/csv"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
@@ -122,6 +124,24 @@ func searchKeyword(w http.ResponseWriter, r *http.Request) {
 		}
 
 		domains = append(domains, record.Domain)
+
+		// Writing results to a file for download
+		filePath := fmt.Sprintf("./results_%d.csv", time.Now().Unix())
+		file, err := os.Create(filePath)
+		if err != nil {
+			http.Error(w, "Error creating file", http.StatusInternalServerError)
+			return
+		}
+		defer file.Close()
+
+		writer := csv.NewWriter(file)
+		defer writer.Flush()
+
+		for _, domain := range domains {
+			writer.Write([]string{domain})
+		}
+
+		fmt.Fprintf(w, "Results written to file: %s", filePath)
 	}
 }
 
