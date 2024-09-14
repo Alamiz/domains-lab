@@ -1,6 +1,39 @@
+import { useState } from "react";
+import { RxHamburgerMenu, RxCross2 } from "react-icons/rx";
+
 const NavBar = () => {
+  const [currentTab, setCurrentTab] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+
   return (
-    <div>NavBar</div>
+    <header className="p-6 bg-background/85 backdrop-blur sticky top-0 inset-x-0 z-40">
+      <div className="container">
+        <nav className="flex items-center justify-between gap-6">
+          <a className="w-52 cursor-pointer" href="#">
+            <img src="./images/Domain-Lab-Logo.svg" alt="" />
+          </a>
+          <ul className="flex flex-1 items-center justify-center gap-4 md:flex hidden">
+            <li onClick={() => setCurrentTab('home')}><a href="#" className={currentTab === "home" ? "text-primary underline underline-offset-8" : "text-secondary"}>Home</a></li>
+            <li onClick={() => setCurrentTab('upload')}><a href="#upload" className={currentTab === "upload" ? "text-primary underline underline-offset-8" : "text-secondary"}>Upload File</a></li>
+            <li onClick={() => setCurrentTab('search')}><a href="#search" className={currentTab === "search" ? "text-primary underline underline-offset-8" : "text-secondary"}>Search</a></li>
+            <li onClick={() => setCurrentTab('download')}><a href="#download" className={currentTab === "download" ? "text-primary underline underline-offset-8" : "text-secondary"}>Download</a></li>
+          </ul>
+          <button className="md:flex hidden">Get started</button>
+          <button className="md:hidden" onClick={() => setIsOpen(!isOpen)}>
+            {isOpen ? <RxCross2 />: <RxHamburgerMenu />}
+          </button>
+
+        </nav>
+          {isOpen && (
+            <ul className="flex flex-1 flex-col mt-4 items-center justify-center gap-4">
+              <li onClick={() => setCurrentTab('home')}><a href="#" className={currentTab === "home" ? "text-primary underline underline-offset-8" : "text-secondary"}>Home</a></li>
+              <li onClick={() => setCurrentTab('upload')}><a href="#upload" className={currentTab === "upload" ? "text-primary underline underline-offset-8" : "text-secondary"}>Upload File</a></li>
+              <li onClick={() => setCurrentTab('search')}><a href="#search" className={currentTab === "search" ? "text-primary underline underline-offset-8" : "text-secondary"}>Search</a></li>
+              <li onClick={() => setCurrentTab('download')}><a href="#download" className={currentTab === "download" ? "text-primary underline underline-offset-8" : "text-secondary"}>Download</a></li>
+            </ul>
+          )}
+      </div>
+    </header>
   )
 }
 
