@@ -95,10 +95,6 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "File processed successfully")
 }
 
-func downloadFile(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprint(w, "Downloading file")
-}
-
 func searchKeyword(w http.ResponseWriter, r *http.Request) {
 	keyword := r.URL.Query().Get("keyword")
 
@@ -143,6 +139,15 @@ func searchKeyword(w http.ResponseWriter, r *http.Request) {
 
 		fmt.Fprintf(w, "Results written to file: %s", filePath)
 	}
+}
+
+func downloadFile(w http.ResponseWriter, r *http.Request) {
+	filePath := r.URL.Query().Get("file")
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	}
+	http.ServeFile(w, r, filePath)
 }
 
 func processDomain(domain string) {
