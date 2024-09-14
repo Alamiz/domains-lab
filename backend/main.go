@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/joho/godotenv"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -97,7 +98,31 @@ func downloadFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func searchKeyword(w http.ResponseWriter, r *http.Request) {
-	fmt.Printf("Searching for the keyword ...")
+	keyword := r.URL.Query().Get("keyword")
+
+	if keyword == "" {
+		http.Error(w, "Keyword is required", http.StatusBadRequest)
+		return
+	}
+
+	filter := bson.D{{"txtrecords", bson.M{"$regex": keyword}}}
+
+	cursor, err := collection.Find(context.TODO(), filter)
+	if err != nil {
+		http.Error(w, "Error querying database", http.StatusInternalServerError)
+		return
+	}
+	defer cursor.Close(context.TODO())
+
+	var domains []string
+	for cursor.Next(context.TODO()) {
+		var record DomainRecord
+		if err = cursor.Decode(&record); err != nil {
+			log.Fatal(err)
+		}
+
+		domains = append(domains, record.Domain)
+	}
 }
 
 func processDomain(domain string) {
