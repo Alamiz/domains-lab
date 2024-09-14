@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"net/http"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -48,9 +50,28 @@ func initDB() {
 	if collection == nil {
 		log.Fatal("Failed to get collection 'domains'")
 	}
+}
 
+func setupRoutes() {
+	http.HandleFunc("/upload", uploadFile)
+	http.HandleFunc("/download", downloadFile)
+	http.HandleFunc("/search", searchKeyword)
+	http.ListenAndServe(":8080", nil)
+}
+
+func uploadFile(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("File uploaded")
+}
+
+func downloadFile(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Downloading file")
+}
+
+func searchKeyword(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("Searching for the keyword ...")
 }
 
 func main() {
 	initDB()
+	setupRoutes()
 }
