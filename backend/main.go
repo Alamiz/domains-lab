@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -60,15 +63,58 @@ func setupRoutes() {
 }
 
 func uploadFile(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("File uploaded")
+	r.ParseMultipartForm(10 << 20)
+
+	file, handler, err := r.FormFile("domainsFile")
+
+	if err != nil {
+		fmt.Println("Error retriving file from the request")
+		fmt.Println(err)
+		return
+	}
+
+	defer file.Close()
+
+	fmt.Printf("Uploaded file: %v\n", handler.Filename)
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		domain := strings.TrimSpace(scanner.Text())
+		if domain != "" {
+			go processDomain(domain)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		http.Error(w, "Error reading the file", http.StatusInternalServerError)
+		return
+	}
+	fmt.Fprintf(w, "File processed successfully")
 }
 
 func downloadFile(w http.ResponseWriter, r *http.Request) {
-	fmt.Println("Downloading file")
+	fmt.Fprint(w, "Downloading file")
 }
 
 func searchKeyword(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("Searching for the keyword ...")
+}
+
+func processDomain(domain string) {
+	txtRecords, err := net.LookupTXT(domain)
+
+	if err != nil {
+		fmt.Printf("Error processing TXT records for %v: %v\n", domain, err)
+		return
+	}
+
+	if len(txtRecords) > 0 {
+		record := DomainRecord{Domain: domain, TxtRecords: txtRecords}
+		_, err := collection.InsertOne(context.TODO(), record)
+		if err != nil {
+			fmt.Printf("Error storing record for %s: %v\n", domain, err)
+		}
+	}
 }
 
 func main() {
