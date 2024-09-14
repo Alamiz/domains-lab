@@ -12,6 +12,7 @@
     
     --clr-primary: #6C63FF;
     --clr-secondary: #0C0A09;
+    --clr-background: #F5F5F5;
   }
 }
 
@@ -20,4 +21,16 @@ body{
   padding: 0;
   box-sizing: border-box;
   scroll-behavior: smooth;
+  background-color: var(--clr-background);
+}
+
+.container{
+  margin-inline: auto;
+  width: 100%;
+}
+
+@media (min-width: 1200px){
+  .container{
+    max-width: 1200px;
+  }
 }
