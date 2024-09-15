@@ -68,7 +68,7 @@ func setupRoutes() {
 // upload and process the bulk domains file
 func uploadFile(w http.ResponseWriter, r *http.Request) {
 
-	const grMax = 50
+	const grMax = 100
 	var wg sync.WaitGroup
 	ch := make(chan int, grMax)
 
@@ -92,22 +92,32 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 	// Create a scanner to read the file line by line
 	scanner := bufio.NewScanner(file)
 
-	// Process each line in the file
+	// Creating a slice to store the domains
+	var domains []string
 	for scanner.Scan() {
 		// Trim the line to remove whitespace
 		domain := strings.TrimSpace(scanner.Text())
+		domains = append(domains, domain)
+	}
 
+	var i int
+
+	// Process each line in the file
+	for _, domain := range domains {
 		// If the line is not empty then we process the domain
 		if domain != "" {
 			wg.Add(1)
 			ch <- 1
-			fmt.Println("Processing domain: ", domain)
+			percent := int(float64(i) / float64(len(domains)) * 100)
+			fmt.Printf("Processing domain: %v (%d%%) \n", domain, percent)
 
 			go func() {
 				defer func() { wg.Done(); <-ch }()
 				processDomain(domain)
 			}()
 		}
+
+		i++
 	}
 
 	wg.Wait()
@@ -119,6 +129,34 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Fprintf(w, "File processed successfully")
+}
+
+// This function takes a domain name, looks up its TXT records, and stores them in the database if they exist.
+func processDomain(domain string) {
+	// Look up the TXT records for the domain
+	// txtRecords, err := lookupTXTWithAPI(domain)
+	// txtRecords, err := lookupTXTWithMiekg(domain)
+	txtRecords, err := net.LookupTXT(domain)
+
+	if err != nil {
+		fmt.Printf("Error processing TXT records for %v: %v\n", domain, err)
+		return
+	}
+
+	// Quiting the function if there are no TXT records
+	if len(txtRecords) == 0 {
+		return
+	}
+
+	// Creating a DomainRecord object to store in the database
+	record := DomainRecord{Domain: domain, TxtRecords: txtRecords}
+
+	// Inserting the record into the database
+	_, err = collection.InsertOne(context.TODO(), record)
+
+	if err != nil {
+		fmt.Printf("Error storing record for %s: %v\n", domain, err)
+	}
 }
 
 // Search the database for the given keyword
@@ -210,34 +248,6 @@ func downloadFile(w http.ResponseWriter, r *http.Request) {
 
 	// returning the file
 	http.ServeFile(w, r, filePath)
-}
-
-// This function takes a domain name, looks up its TXT records, and stores them in the database if they exist.
-func processDomain(domain string) {
-	// Look up the TXT records for the domain
-	// txtRecords, err := lookupTXTWithAPI(domain)
-	// txtRecords, err := lookupTXTWithMiekg(domain)
-	txtRecords, err := net.LookupTXT(domain)
-
-	if err != nil {
-		fmt.Printf("Error processing TXT records for %v: %v\n", domain, err)
-		return
-	}
-
-	// Quiting the function if there are no TXT records
-	if len(txtRecords) == 0 {
-		return
-	}
-
-	// Creating a DomainRecord object to store in the database
-	record := DomainRecord{Domain: domain, TxtRecords: txtRecords}
-
-	// Inserting the record into the database
-	_, err = collection.InsertOne(context.TODO(), record)
-
-	if err != nil {
-		fmt.Printf("Error storing record for %s: %v\n", domain, err)
-	}
 }
 
 func main() {
