@@ -3,14 +3,13 @@ import { NavBar, CTA } from './components'
 import { useState } from 'react'
 
 const App = () => {
-  const [isFileProcessed, setIsFileProcessed] = useState(false)
 
   return (
     <div className="app">
       <NavBar />
       <Header />
-      <FileUpload setIsFileProcessed={setIsFileProcessed}/>
-      <FileDownload isFileProcessed={isFileProcessed}/>
+      <FileUpload />
+      <FileDownload />
       <HowItWorks />
       <Footer />
     </div>

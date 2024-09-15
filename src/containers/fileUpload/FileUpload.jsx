@@ -5,16 +5,9 @@ import { FaFileLines } from "react-icons/fa6";
 import ProgressBar from "../../components/progressBar/ProgressBar";
 import { useFileUpload } from "../../hooks/useFileUpload";
 
-const FileUpload = ({ setIsFileProcessed }) => {
+const FileUpload = () => {
   const fileRef = useRef(null);
   const { file, uploading, error, handleFileChange, progress } = useFileUpload();
-
-  useEffect(() => {
-    if (progress === '100') {
-      setIsFileProcessed(true)
-    }
-  }, [progress])
-
 
   return (
     <section>
