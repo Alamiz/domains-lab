@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -54,19 +55,60 @@ func initDB() {
 	}
 }
 
+// CORS Middleware function
+func enableCORS(next http.Handler) http.Handler {
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		// Allow requests from the client origin
+
+		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:5173")
+
+		// Allow specified HTTP methods
+
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+
+		// Allow specified headers
+
+		w.Header().Set("Access-Control-Allow-Headers", "Origin, Content-Type, Accept")
+
+		// Handle OPTIONS requests (preflight request)
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		// Continue with the next handler
+
+		next.ServeHTTP(w, r)
+
+	})
+}
+
 // Set up the routes for the application
 func setupRoutes() {
-	http.HandleFunc("/upload", uploadFile)
-	http.HandleFunc("/download", downloadFile)
-	http.HandleFunc("/search", searchKeyword)
-	http.HandleFunc("/list", getAllDomains)
+	router := mux.NewRouter()
+
+	// Enables CORS
+	router.Use(enableCORS)
+
+	// Routes
+	router.HandleFunc("/upload", uploadFile).Methods("POST")
+	router.HandleFunc("/download", downloadFile).Methods("GET")
+	router.HandleFunc("/search", searchKeyword).Methods("GET")
+	router.HandleFunc("/list", getAllDomains).Methods("GET")
 
 	// Start the server on port 8080
-	http.ListenAndServe(":8080", nil)
+	http.ListenAndServe(":8080", router)
 }
 
 // upload and process the bulk domains file
 func uploadFile(w http.ResponseWriter, r *http.Request) {
+
+	// Setting headers for streaming
+	w.Header().Set("Content-Type", "text/plain")
+	w.Header().Set("Transfer-Encoding", "chunked")
+	w.Header().Set("Connection", "keep-alive")
 
 	const grMax = 100
 	var wg sync.WaitGroup
@@ -100,6 +142,13 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 		domains = append(domains, domain)
 	}
 
+	// Flusher ensures that the response can be written in chunks
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
 	var i int
 
 	// Process each line in the file
@@ -110,6 +159,9 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 			ch <- 1
 			percent := int(float64(i) / float64(len(domains)) * 100)
 			fmt.Printf("Processing domain: %v (%d%%) \n", domain, percent)
+
+			fmt.Fprintf(w, "%d\n", percent)
+			flusher.Flush() // Send the data to the client immediately
 
 			go func() {
 				defer func() { wg.Done(); <-ch }()
