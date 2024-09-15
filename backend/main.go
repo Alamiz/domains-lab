@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -110,23 +111,16 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Transfer-Encoding", "chunked")
 	w.Header().Set("Connection", "keep-alive")
 
-	const grMax = 100
-	var wg sync.WaitGroup
-	ch := make(chan int, grMax)
-
-	//Set a maximum amount of memory to be used when parsing the request body
-	r.ParseMultipartForm(10 << 20) // 10 << 20 equivalent to 10mb
+	// Set a maximum amount of memory to be used when parsing the request body
+	r.ParseMultipartForm(10 << 20) // 10MB
 
 	// Get the file from the request
 	file, handler, err := r.FormFile("domainsFile")
-
 	if err != nil {
-		fmt.Println("Error retriving file from the request")
-		fmt.Println(err)
+		fmt.Println("Error retrieving file from the request:", err)
+		http.Error(w, "Error retrieving file", http.StatusBadRequest)
 		return
 	}
-
-	// Close the file after were done with it
 	defer file.Close()
 
 	fmt.Printf("Uploaded file: %v\n", handler.Filename)
@@ -137,9 +131,10 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 	// Creating a slice to store the domains
 	var domains []string
 	for scanner.Scan() {
-		// Trim the line to remove whitespace
 		domain := strings.TrimSpace(scanner.Text())
-		domains = append(domains, domain)
+		if domain != "" {
+			domains = append(domains, domain)
+		}
 	}
 
 	// Flusher ensures that the response can be written in chunks
@@ -149,32 +144,39 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var i int
+	const grMax = 100           // MAX number of goroutines running simultaneously
+	var wg sync.WaitGroup       // WaitGroup to wait for all goroutines to finish
+	ch := make(chan int, grMax) // Channel to control goroutine concurrency
+	var i int32                 // Use atomic counter for thread-safe increments
 
-	// Process each line in the file
+	// Process each domain
 	for _, domain := range domains {
-		// If the line is not empty then we process the domain
-		if domain != "" {
-			wg.Add(1)
-			ch <- 1
-			percent := int(float64(i) / float64(len(domains)) * 100)
-			fmt.Printf("Processing domain: %v (%d%%) \n", domain, percent)
+		wg.Add(1)
+		ch <- 1 // Block if we've reached grMax
 
+		// Launch goroutine to process the domain
+		go func(domain string) {
+			defer func() { wg.Done(); <-ch }()
+
+			// Process the domain
+			processDomain(domain)
+
+			// Increment the counter after processing is done (atomic increment)
+			atomic.AddInt32(&i, 1)
+
+			// Calculate the percentage
+			percent := int(float64(atomic.LoadInt32(&i)) / float64(len(domains)) * 100)
+
+			// Send the update to the client
+			fmt.Printf("Processing domain: %v (%d%%)\n", domain, percent)
 			fmt.Fprintf(w, "%d\n", percent)
-			flusher.Flush() // Send the data to the client immediately
-
-			go func() {
-				defer func() { wg.Done(); <-ch }()
-				processDomain(domain)
-			}()
-		}
-
-		i++
+			flusher.Flush() // Flush the response to the client
+		}(domain)
 	}
 
 	wg.Wait()
 
-	// Check if there were any errors while reading the file
+	// Check for any errors while reading the file
 	if err := scanner.Err(); err != nil {
 		http.Error(w, "Error reading the file", http.StatusInternalServerError)
 		return
@@ -186,8 +188,6 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 // This function takes a domain name, looks up its TXT records, and stores them in the database if they exist.
 func processDomain(domain string) {
 	// Look up the TXT records for the domain
-	// txtRecords, err := lookupTXTWithAPI(domain)
-	// txtRecords, err := lookupTXTWithMiekg(domain)
 	txtRecords, err := net.LookupTXT(domain)
 
 	if err != nil {
