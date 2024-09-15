@@ -1,13 +1,16 @@
 import { Header, FileUpload, FileDownload, HowItWorks, Footer } from './containers'
-import { NavBar, CTA, InstructionCard, FileInput } from './components'
+import { NavBar, CTA } from './components'
+import { useState } from 'react'
 
 const App = () => {
+  const [isFileProcessed, setIsFileProcessed] = useState(false)
+
   return (
     <div className="app">
       <NavBar />
       <Header />
-      <FileUpload />
-      <FileDownload />
+      <FileUpload setIsFileProcessed={setIsFileProcessed}/>
+      <FileDownload isFileProcessed={isFileProcessed}/>
       <HowItWorks />
       <Footer />
     </div>

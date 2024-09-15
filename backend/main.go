@@ -261,7 +261,9 @@ func searchKeyword(w http.ResponseWriter, r *http.Request) {
 		writer.Write([]string{domain})
 	}
 
-	fmt.Fprintf(w, "Results written to file: %s", filePath)
+	// Send the filepath as a response
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, "{\"filepath\":\"%s\"}", filePath)
 }
 
 // Getting all the processed domains from the database
