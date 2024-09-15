@@ -19,7 +19,7 @@ export const useFileUpload = () => {
         if (!file) return;
     
         setUploading(true);
-        setProgress(''); // Reset response data
+        setProgress('0'); // Reset response data
     
         try {
             const formData = new FormData();
