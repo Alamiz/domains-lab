@@ -6,11 +6,12 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -67,6 +68,10 @@ func setupRoutes() {
 // upload and process the bulk domains file
 func uploadFile(w http.ResponseWriter, r *http.Request) {
 
+	const grMax = 50
+	var wg sync.WaitGroup
+	ch := make(chan int, grMax)
+
 	//Set a maximum amount of memory to be used when parsing the request body
 	r.ParseMultipartForm(10 << 20) // 10 << 20 equivalent to 10mb
 
@@ -94,10 +99,18 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 
 		// If the line is not empty then we process the domain
 		if domain != "" {
+			wg.Add(1)
+			ch <- 1
 			fmt.Println("Processing domain: ", domain)
-			processDomain(domain)
+
+			go func() {
+				defer func() { wg.Done(); <-ch }()
+				processDomain(domain)
+			}()
 		}
 	}
+
+	wg.Wait()
 
 	// Check if there were any errors while reading the file
 	if err := scanner.Err(); err != nil {
@@ -202,7 +215,9 @@ func downloadFile(w http.ResponseWriter, r *http.Request) {
 // This function takes a domain name, looks up its TXT records, and stores them in the database if they exist.
 func processDomain(domain string) {
 	// Look up the TXT records for the domain
-	txtRecords, err := lookupTXTWithAPI(domain)
+	// txtRecords, err := lookupTXTWithAPI(domain)
+	// txtRecords, err := lookupTXTWithMiekg(domain)
+	txtRecords, err := net.LookupTXT(domain)
 
 	if err != nil {
 		fmt.Printf("Error processing TXT records for %v: %v\n", domain, err)
@@ -223,55 +238,6 @@ func processDomain(domain string) {
 	if err != nil {
 		fmt.Printf("Error storing record for %s: %v\n", domain, err)
 	}
-}
-
-// Looks up the TXT records for a given domain using the URLMeta API.
-func lookupTXTWithAPI(domain string) ([]string, error) {
-	type DNSResponse struct {
-		DNS []struct {
-			Value string `json:"value"` // The value of the TXT record.
-		} `json:"dns"` // The DNS records returned by the API.
-	}
-
-	// Create the API URL.
-	apiURL := fmt.Sprintf("https://api.urlmeta.org/dns?domain=%s&record=txt", domain)
-
-	// Create the HTTP request.
-	request, err := http.NewRequest(http.MethodGet, apiURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("error creating request: %v", err)
-	}
-
-	// Add the Authorization header to the request.
-	request.Header.Add("Authorization", "Basic aGFtemFlbGFsYW1peEBnbWFpbC5jb206M3ljazZOSTlNVkJDbjIyQVFyOUw=")
-
-	// Make the API call.
-	response, err := http.DefaultClient.Do(request)
-
-	if err != nil {
-		return nil, fmt.Errorf("error making request: %v", err)
-	}
-
-	// Read the response body.
-	responseBytes, err := io.ReadAll(response.Body)
-	if err != nil {
-		return nil, fmt.Errorf("error reading response: %v", err)
-	}
-
-	// Unmarshal the JSON response into a struct.
-	var dnsResponse DNSResponse
-	err = json.Unmarshal(responseBytes, &dnsResponse)
-	if err != nil {
-		return nil, fmt.Errorf("error unmarshalling response: %v", err)
-	}
-
-	// Extract the TXT records from the response.
-	dnsData := make([]string, len(dnsResponse.DNS))
-	for i, dnsElement := range dnsResponse.DNS {
-		dnsData[i] = dnsElement.Value
-	}
-
-	return dnsData, nil
 }
 
 func main() {
