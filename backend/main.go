@@ -5,19 +5,15 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
-	"io"
-	"time"
-
 	"fmt"
+	"io"
 	"log"
-
-	// "net"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/miekg/dns"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -144,25 +140,25 @@ func searchKeyword(w http.ResponseWriter, r *http.Request) {
 		}
 
 		domains = append(domains, record.Domain)
-
-		// Writing the results to a file for download
-		filePath := fmt.Sprintf("./results_%d.csv", time.Now().Unix())
-		file, err := os.Create(filePath)
-		if err != nil {
-			http.Error(w, "Error creating file", http.StatusInternalServerError)
-			return
-		}
-		defer file.Close()
-
-		writer := csv.NewWriter(file)
-		defer writer.Flush()
-
-		for _, domain := range domains {
-			writer.Write([]string{domain})
-		}
-
-		fmt.Fprintf(w, "Results written to file: %s", filePath)
 	}
+
+	// Writing the results to a file for download
+	filePath := fmt.Sprintf("./results_%d.csv", time.Now().Unix())
+	file, err := os.Create(filePath)
+	if err != nil {
+		http.Error(w, "Error creating file", http.StatusInternalServerError)
+		return
+	}
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	for _, domain := range domains {
+		writer.Write([]string{domain})
+	}
+
+	fmt.Fprintf(w, "Results written to file: %s", filePath)
 }
 
 // Getting all the processed domains from the database
@@ -229,65 +225,47 @@ func processDomain(domain string) {
 	}
 }
 
-func lookupTXTWithMiekg(domain string) ([]string, error) {
-	// Create a new DNS message
-	m := new(dns.Msg)
-	m.SetQuestion(dns.Fqdn(domain), dns.TypeTXT)
-
-	// Create a DNS client
-	c := new(dns.Client)
-	c.Timeout = 5 * time.Second
-
-	// Choose the DNS server (Google DNS in this case)
-	r, _, err := c.Exchange(m, "1.1.1.1:53")
-	if err != nil {
-		return nil, err
-	}
-
-	// Parse the DNS response
-	var txtRecords []string
-	for _, answer := range r.Answer {
-		if txt, ok := answer.(*dns.TXT); ok {
-			txtRecords = append(txtRecords, txt.Txt...)
-		}
-	}
-
-	return txtRecords, nil
-}
-
+// Looks up the TXT records for a given domain using the URLMeta API.
 func lookupTXTWithAPI(domain string) ([]string, error) {
 	type DNSResponse struct {
 		DNS []struct {
-			Value string `json:"value"`
-		} `json:"dns"`
+			Value string `json:"value"` // The value of the TXT record.
+		} `json:"dns"` // The DNS records returned by the API.
 	}
 
+	// Create the API URL.
 	apiURL := fmt.Sprintf("https://api.urlmeta.org/dns?domain=%s&record=txt", domain)
 
+	// Create the HTTP request.
 	request, err := http.NewRequest(http.MethodGet, apiURL, nil)
-
 	if err != nil {
 		return nil, fmt.Errorf("error creating request: %v", err)
 	}
 
+	// Add the Authorization header to the request.
 	request.Header.Add("Authorization", "Basic aGFtemFlbGFsYW1peEBnbWFpbC5jb206M3ljazZOSTlNVkJDbjIyQVFyOUw=")
+
+	// Make the API call.
 	response, err := http.DefaultClient.Do(request)
 
 	if err != nil {
 		return nil, fmt.Errorf("error making request: %v", err)
 	}
 
+	// Read the response body.
 	responseBytes, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, fmt.Errorf("error reading response: %v", err)
 	}
 
+	// Unmarshal the JSON response into a struct.
 	var dnsResponse DNSResponse
 	err = json.Unmarshal(responseBytes, &dnsResponse)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshalling response: %v", err)
 	}
 
+	// Extract the TXT records from the response.
 	dnsData := make([]string, len(dnsResponse.DNS))
 	for i, dnsElement := range dnsResponse.DNS {
 		dnsData[i] = dnsElement.Value
