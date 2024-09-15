@@ -5,16 +5,19 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
-	"net"
+	"io"
 	"time"
 
 	"fmt"
 	"log"
+
+	// "net"
 	"net/http"
 	"os"
 	"strings"
 
 	"github.com/joho/godotenv"
+	"github.com/miekg/dns"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -203,7 +206,7 @@ func downloadFile(w http.ResponseWriter, r *http.Request) {
 // This function takes a domain name, looks up its TXT records, and stores them in the database if they exist.
 func processDomain(domain string) {
 	// Look up the TXT records for the domain
-	txtRecords, err := net.LookupTXT(domain)
+	txtRecords, err := lookupTXTWithAPI(domain)
 
 	if err != nil {
 		fmt.Printf("Error processing TXT records for %v: %v\n", domain, err)
@@ -224,6 +227,73 @@ func processDomain(domain string) {
 	if err != nil {
 		fmt.Printf("Error storing record for %s: %v\n", domain, err)
 	}
+}
+
+func lookupTXTWithMiekg(domain string) ([]string, error) {
+	// Create a new DNS message
+	m := new(dns.Msg)
+	m.SetQuestion(dns.Fqdn(domain), dns.TypeTXT)
+
+	// Create a DNS client
+	c := new(dns.Client)
+	c.Timeout = 5 * time.Second
+
+	// Choose the DNS server (Google DNS in this case)
+	r, _, err := c.Exchange(m, "1.1.1.1:53")
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse the DNS response
+	var txtRecords []string
+	for _, answer := range r.Answer {
+		if txt, ok := answer.(*dns.TXT); ok {
+			txtRecords = append(txtRecords, txt.Txt...)
+		}
+	}
+
+	return txtRecords, nil
+}
+
+func lookupTXTWithAPI(domain string) ([]string, error) {
+	type DNSResponse struct {
+		DNS []struct {
+			Value string `json:"value"`
+		} `json:"dns"`
+	}
+
+	apiURL := fmt.Sprintf("https://api.urlmeta.org/dns?domain=%s&record=txt", domain)
+
+	request, err := http.NewRequest(http.MethodGet, apiURL, nil)
+
+	if err != nil {
+		return nil, fmt.Errorf("error creating request: %v", err)
+	}
+
+	request.Header.Add("Authorization", "Basic aGFtemFlbGFsYW1peEBnbWFpbC5jb206M3ljazZOSTlNVkJDbjIyQVFyOUw=")
+	response, err := http.DefaultClient.Do(request)
+
+	if err != nil {
+		return nil, fmt.Errorf("error making request: %v", err)
+	}
+
+	responseBytes, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error reading response: %v", err)
+	}
+
+	var dnsResponse DNSResponse
+	err = json.Unmarshal(responseBytes, &dnsResponse)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshalling response: %v", err)
+	}
+
+	dnsData := make([]string, len(dnsResponse.DNS))
+	for i, dnsElement := range dnsResponse.DNS {
+		dnsData[i] = dnsElement.Value
+	}
+
+	return dnsData, nil
 }
 
 func main() {
