@@ -2,7 +2,7 @@ import { useState } from "react";
 import { RxHamburgerMenu, RxCross2 } from "react-icons/rx";
 
 const NavBar = () => {
-  const [currentTab, setCurrentTab] = useState('');
+  const [currentTab, setCurrentTab] = useState('home');
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -18,7 +18,7 @@ const NavBar = () => {
             <li onClick={() => setCurrentTab('search')}><a href="#search" className={currentTab === "search" ? "text-primary underline underline-offset-8" : "text-secondary"}>Search</a></li>
             <li onClick={() => setCurrentTab('download')}><a href="#download" className={currentTab === "download" ? "text-primary underline underline-offset-8" : "text-secondary"}>Download</a></li>
           </ul>
-          <button className="md:flex hidden">Get started</button>
+          <button className="md:flex hidden bg-primary rounded-md px-3 py-2 text-white">Get started</button>
           <button className="md:hidden" onClick={() => setIsOpen(!isOpen)}>
             {isOpen ? <RxCross2 />: <RxHamburgerMenu />}
           </button>
@@ -26,10 +26,10 @@ const NavBar = () => {
         </nav>
           {isOpen && (
             <ul className="flex flex-1 flex-col mt-4 items-center justify-center gap-4">
-              <li onClick={() => setCurrentTab('home')}><a href="#" className={currentTab === "home" ? "text-primary underline underline-offset-8" : "text-secondary"}>Home</a></li>
-              <li onClick={() => setCurrentTab('upload')}><a href="#upload" className={currentTab === "upload" ? "text-primary underline underline-offset-8" : "text-secondary"}>Upload File</a></li>
-              <li onClick={() => setCurrentTab('search')}><a href="#search" className={currentTab === "search" ? "text-primary underline underline-offset-8" : "text-secondary"}>Search</a></li>
-              <li onClick={() => setCurrentTab('download')}><a href="#download" className={currentTab === "download" ? "text-primary underline underline-offset-8" : "text-secondary"}>Download</a></li>
+              <li onClick={() => setIsOpen(false)}><a href="#" className={"text-secondary"}>Home</a></li>
+              <li onClick={() => setIsOpen(false)}><a href="#upload" className="text-secondary">Upload File</a></li>
+              <li onClick={() => setIsOpen(false)}><a href="#search" className="text-secondary">Search</a></li>
+              <li onClick={() => setIsOpen(false)}><a href="#download" className="text-secondary">Download</a></li>
             </ul>
           )}
       </div>
