@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/csv"
+	"encoding/json"
 	"net"
 	"time"
 
@@ -58,6 +59,7 @@ func setupRoutes() {
 	http.HandleFunc("/upload", uploadFile)
 	http.HandleFunc("/download", downloadFile)
 	http.HandleFunc("/search", searchKeyword)
+	http.HandleFunc("/list", getAllDomains)
 
 	// Start the server on port 8080
 	http.ListenAndServe(":8080", nil)
@@ -158,6 +160,29 @@ func searchKeyword(w http.ResponseWriter, r *http.Request) {
 
 		fmt.Fprintf(w, "Results written to file: %s", filePath)
 	}
+}
+
+// Getting all the processed domains from the database
+func getAllDomains(w http.ResponseWriter, r *http.Request) {
+	cursor, err := collection.Find(context.TODO(), bson.D{})
+	if err != nil {
+		http.Error(w, "Error querying database", http.StatusInternalServerError)
+		return
+	}
+	defer cursor.Close(context.TODO())
+
+	var allDomains []DomainRecord
+	for cursor.Next(context.TODO()) {
+		var record DomainRecord
+		if err = cursor.Decode(&record); err != nil {
+			http.Error(w, "Error decoding database record", http.StatusInternalServerError)
+			return
+		}
+		allDomains = append(allDomains, record)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(allDomains)
 }
 
 // Downloading the processed file
