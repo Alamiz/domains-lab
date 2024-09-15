@@ -4,11 +4,11 @@ import (
 	"bufio"
 	"context"
 	"encoding/csv"
+	"net"
 	"time"
 
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -24,6 +24,7 @@ type DomainRecord struct {
 	TxtRecords []string
 }
 
+// Global variables
 var collection *mongo.Collection
 
 // Initialize MongoDB
@@ -52,16 +53,23 @@ func initDB() {
 	}
 }
 
+// Set up the routes for the application
 func setupRoutes() {
 	http.HandleFunc("/upload", uploadFile)
 	http.HandleFunc("/download", downloadFile)
 	http.HandleFunc("/search", searchKeyword)
+
+	// Start the server on port 8080
 	http.ListenAndServe(":8080", nil)
 }
 
+// upload and process the bulk domains file
 func uploadFile(w http.ResponseWriter, r *http.Request) {
-	r.ParseMultipartForm(10 << 20)
 
+	//Set a maximum amount of memory to be used when parsing the request body
+	r.ParseMultipartForm(10 << 20) // 10 << 20 equivalent to 10mb
+
+	// Get the file from the request
 	file, handler, err := r.FormFile("domainsFile")
 
 	if err != nil {
@@ -70,25 +78,36 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Close the file after were done with it
 	defer file.Close()
 
 	fmt.Printf("Uploaded file: %v\n", handler.Filename)
 
+	// Create a scanner to read the file line by line
 	scanner := bufio.NewScanner(file)
+
+	// Process each line in the file
 	for scanner.Scan() {
+		// Trim the line to remove whitespace
 		domain := strings.TrimSpace(scanner.Text())
+
+		// If the line is not empty then we process the domain
 		if domain != "" {
-			go processDomain(domain)
+			fmt.Println("Processing domain: ", domain)
+			processDomain(domain)
 		}
 	}
 
+	// Check if there were any errors while reading the file
 	if err := scanner.Err(); err != nil {
 		http.Error(w, "Error reading the file", http.StatusInternalServerError)
 		return
 	}
+
 	fmt.Fprintf(w, "File processed successfully")
 }
 
+// Search the database for the given keyword
 func searchKeyword(w http.ResponseWriter, r *http.Request) {
 	keyword := r.URL.Query().Get("keyword")
 
@@ -97,8 +116,10 @@ func searchKeyword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filter := bson.M{"txtRecords": bson.M{"$regex": keyword}}
+	// a filter variable to search the database
+	filter := bson.M{"txtrecords": bson.M{"$regex": keyword}}
 
+	// Execute the search
 	cursor, err := collection.Find(context.TODO(), filter)
 	if err != nil {
 		fmt.Println(err)
@@ -107,7 +128,10 @@ func searchKeyword(w http.ResponseWriter, r *http.Request) {
 	}
 	defer cursor.Close(context.TODO())
 
+	// Store the results in a slice of strings
 	var domains []string
+
+	// Interate over the results and decoding each record
 	for cursor.Next(context.TODO()) {
 		var record DomainRecord
 		if err = cursor.Decode(&record); err != nil {
@@ -116,7 +140,7 @@ func searchKeyword(w http.ResponseWriter, r *http.Request) {
 
 		domains = append(domains, record.Domain)
 
-		// Writing results to a file for download
+		// Writing the results to a file for download
 		filePath := fmt.Sprintf("./results_%d.csv", time.Now().Unix())
 		file, err := os.Create(filePath)
 		if err != nil {
@@ -136,16 +160,24 @@ func searchKeyword(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Downloading the processed file
 func downloadFile(w http.ResponseWriter, r *http.Request) {
+	//reading the query parameter
 	filePath := r.URL.Query().Get("file")
+
+	// finding the file
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		http.Error(w, "File not found", http.StatusNotFound)
 		return
 	}
+
+	// returning the file
 	http.ServeFile(w, r, filePath)
 }
 
+// This function takes a domain name, looks up its TXT records, and stores them in the database if they exist.
 func processDomain(domain string) {
+	// Look up the TXT records for the domain
 	txtRecords, err := net.LookupTXT(domain)
 
 	if err != nil {
@@ -153,12 +185,19 @@ func processDomain(domain string) {
 		return
 	}
 
-	if len(txtRecords) > 0 {
-		record := DomainRecord{Domain: domain, TxtRecords: txtRecords}
-		_, err := collection.InsertOne(context.TODO(), record)
-		if err != nil {
-			fmt.Printf("Error storing record for %s: %v\n", domain, err)
-		}
+	// Quiting the function if there are no TXT records
+	if len(txtRecords) == 0 {
+		return
+	}
+
+	// Creating a DomainRecord object to store in the database
+	record := DomainRecord{Domain: domain, TxtRecords: txtRecords}
+
+	// Inserting the record into the database
+	_, err = collection.InsertOne(context.TODO(), record)
+
+	if err != nil {
+		fmt.Printf("Error storing record for %s: %v\n", domain, err)
 	}
 }
 
