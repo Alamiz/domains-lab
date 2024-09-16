@@ -11,7 +11,7 @@ const FileUpload = () => {
   const { file, processed, error, handleFileChange, progress } = useFileUpload();
 
   /* Toast invoke function */
-  const notify = () => toast.success("File processed successfully !",{
+  const notify = () => toast.success("File processed successfully !", {
     position: "bottom-right",
     transition: Flip,
     autoClose: 2500,
@@ -21,7 +21,7 @@ const FileUpload = () => {
   });
 
   /* Toast invoke function */
-  const notifyError = () => toast.error(error,{
+  const notifyError = () => toast.error(error, {
     position: "bottom-right",
     transition: Flip,
     autoClose: 2500,
@@ -55,16 +55,16 @@ const FileUpload = () => {
             {/* File preview */}
             <FaFileLines size={56} className="text-primary mb-4" />
             <p className="text-xl mb-4">{file.name}</p>
-            <ProgressBar progress={progress}/>
+            <ProgressBar progress={progress} />
 
             {/* Upload another file */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-6">
+            {processed && <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-6">
               <p className="text-md font-bold">Upload another file ?</p>
               <button className="flex items-center justify-center gap-2 text-background text-lg bg-primary rounded-full px-4 py-2"
                 onClick={() => fileRef.current.click()} >
                 Click here to upload <FaCloudArrowUp size={24} />
               </button>
-            </div>
+            </div>}
           </div>
         }
         <input className="hidden" ref={fileRef} type="file" accept=".txt" onChange={handleFileChange} />
