@@ -45,7 +45,7 @@ const FileInput = ({ onFileChange }) => {
           <FaFileArrowUp className="text-primary" size={38} />
           <p className="text-xl">Drag and drop a file here</p>
           <input
-            accept=".txt"
+            accept=".txt,.csv"
             className="opacity-0 absolute inset-0 cursor-pointer"
             type="file"
             onDragOver={handleDragOver}

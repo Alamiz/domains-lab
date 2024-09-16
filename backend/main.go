@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"mime/multipart"
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -120,6 +122,11 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		fmt.Println("Error retriving file from the request")
 		fmt.Println(err)
+		return
+	}
+
+	if !validateFileType(handler) {
+		http.Error(w, "Invalid file type", http.StatusBadRequest)
 		return
 	}
 
@@ -316,6 +323,19 @@ func downloadFile(w http.ResponseWriter, r *http.Request) {
 
 	// returning the file
 	http.ServeFile(w, r, filePath)
+}
+
+// Validate file type
+func validateFileType(header *multipart.FileHeader) bool {
+	fileName := header.Filename
+	ext := strings.ToLower(filepath.Ext(fileName))
+
+	switch ext {
+	case ".csv", ".txt":
+		return true
+	default:
+		return false
+	}
 }
 
 func main() {

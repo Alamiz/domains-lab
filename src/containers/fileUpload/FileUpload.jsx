@@ -67,7 +67,7 @@ const FileUpload = () => {
             </div>}
           </div>
         }
-        <input className="hidden" ref={fileRef} type="file" accept=".txt" onChange={handleFileChange} />
+        <input className="hidden" ref={fileRef} type="file" accept=".txt,.csv" onChange={handleFileChange} />
       </div>
     </section>
   )
