@@ -6,7 +6,7 @@ const NavBar = () => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <header className="p-6 bg-background/85 backdrop-blur sticky top-0 inset-x-0 z-40">
+    <header className="p-6 bg-background/85 backdrop-blur sticky top-0 inset-x-0 z-40 shadow-md">
       <div className="container">
         <nav className="flex items-center justify-between gap-6">
           <a className="w-52 cursor-pointer" href="#">
