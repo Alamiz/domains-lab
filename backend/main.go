@@ -51,11 +51,38 @@ func initDB() {
 		log.Fatalf("Failed to connect to MongoDB: %v\n", err)
 	}
 
+	db := client.Database("recordlookup")
+	// Ensure Indexes
+	createIndexes(db)
+
 	// Get the collection
 	collection = client.Database("recordlookup").Collection("domains")
 	if collection == nil {
 		log.Fatal("Failed to get collection 'domains'")
 	}
+}
+
+// Create indexes for the 'domains' collection
+func createIndexes(db *mongo.Database) {
+	collection := db.Collection("domains")
+
+	// Create an index for the 'domain' field
+	domainIndex := mongo.IndexModel{
+		Keys: bson.M{"domain": 1}, // Indexing the 'domain' field in ascending order
+	}
+
+	// Create an index for the 'txtRecords' field
+	txtRecordsIndex := mongo.IndexModel{
+		Keys: bson.M{"txtRecords": "text"}, // Full-text search index on 'txtRecords'
+	}
+
+	// Ensure both indexes are created
+	_, err := collection.Indexes().CreateMany(context.TODO(), []mongo.IndexModel{domainIndex, txtRecordsIndex})
+	if err != nil {
+		log.Fatalf("Error creating indexes: %v\n", err)
+	}
+
+	fmt.Println("Indexes created successfully")
 }
 
 // CORS Middleware function
