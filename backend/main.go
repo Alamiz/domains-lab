@@ -101,8 +101,14 @@ func setupRoutes() {
 	router.HandleFunc("/search", searchKeyword).Methods("GET")
 	router.HandleFunc("/list", getAllDomains).Methods("GET")
 
+	port := os.Getenv("PORT")
+
+	if port == "" {
+		port = "8080"
+	}
+
 	// Start the server on port 8080
-	http.ListenAndServe(":8080", router)
+	http.ListenAndServe("0.0.0.0:"+port, router)
 }
 
 // upload and process the bulk domains file
