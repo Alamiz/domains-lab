@@ -1,3 +1,4 @@
+import 'react-toastify/dist/ReactToastify.css';
 import { Header, FileUpload, FileDownload, HowItWorks, Footer } from './containers'
 import { NavBar, CTA } from './components'
 import { useState } from 'react'

@@ -4,10 +4,20 @@ import { FaCloudArrowUp } from "react-icons/fa6";
 import { FaFileLines } from "react-icons/fa6";
 import ProgressBar from "../../components/progressBar/ProgressBar";
 import { useFileUpload } from "../../hooks/useFileUpload";
+import { Flip, ToastContainer, toast } from 'react-toastify';
 
 const FileUpload = () => {
   const fileRef = useRef(null);
-  const { file, uploading, error, handleFileChange, progress } = useFileUpload();
+  const { file, uploading, processed, error, handleFileChange, progress } = useFileUpload();
+
+  const notify = () => toast.success("File processed successfully !",{
+    transition: Flip
+  });
+
+  useEffect(() => {
+    if (processed)
+      notify();
+  }, [processed])
 
   return (
     <section>
@@ -40,6 +50,12 @@ const FileUpload = () => {
           </div>
         }
         <input className="hidden" ref={fileRef} type="file" accept=".txt" onChange={handleFileChange} />
+        <ToastContainer 
+          position="bottom-right"
+          autoClose={2500}
+          closeOnClick
+          pauseOnHover
+          draggable />
       </div>
     </section>
   )

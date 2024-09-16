@@ -5,6 +5,7 @@ export const useFileUpload = () => {
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState(null);
     const [progress, setProgress] = useState('');
+    const [processed, setProcessed] = useState(false);
 
     useEffect(() => {
         if (file)
@@ -13,12 +14,14 @@ export const useFileUpload = () => {
 
     const handleFileChange = (event) => {
         setFile(event.target.files[0]);
+        event.target.value = '';
     };
 
     const handleUpload = async () => {
         if (!file) return;
     
         setUploading(true);
+        setProcessed(false);
         setProgress('0'); // Reset response data
     
         try {
@@ -44,6 +47,7 @@ export const useFileUpload = () => {
             }
     
             setProgress('100')
+            setProcessed(true)
         } catch (error) {
             setError(error.message);
             console.log(error);
@@ -53,5 +57,5 @@ export const useFileUpload = () => {
     };
     
 
-    return { file, uploading, error, handleFileChange, handleUpload, progress };
+    return { file, uploading, error, handleFileChange, handleUpload, progress, processed };
 };
