@@ -1,6 +1,6 @@
 const Header = () => {
   return (
-    <section className="header">
+    <section id="header">
       <div className="container">
         <div className="flex flex-col items-center justify-center">
           <h1 className="text-4xl font-bold text-center text-balance mb-6">Quick and Accurate <span className="text-primary">DNS</span> TXT Record <span className="text-primary">Lookup</span></h1>

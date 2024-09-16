@@ -7,6 +7,7 @@ export const useFileUpload = () => {
     const [progress, setProgress] = useState('');
     const [processed, setProcessed] = useState(false);
 
+    /* If a file is selected, upload it */
     useEffect(() => {
         if (file)
             handleUpload();
@@ -17,6 +18,7 @@ export const useFileUpload = () => {
         event.target.value = '';
     };
 
+    /* Upload file */
     const handleUpload = async () => {
         if (!file) return;
     
@@ -26,26 +28,38 @@ export const useFileUpload = () => {
     
         try {
             const formData = new FormData();
-            formData.append('domainsFile', file);
+            formData.append('domainsFile', file); // creating a formData with the file to upload it
     
             const response = await fetch(`${import.meta.env.VITE_DOMAINS_LAB_API}/upload`, {
                 method: 'POST',
                 body: formData,
             });
     
+            // Get a reader for the response body
             const reader = response.body.getReader();
+
+            // Create a TextDecoder to decode the response body
             const decoder = new TextDecoder('utf-8');
+
+            // Keep track of whether were done reading the response
             let done = false;
-    
+
+            // Loop until we've read the entire response
             while (!done) {
+                // Read the next chunk of the response
                 const { value, done: readerDone } = await reader.read();
+
+                // Update our done flag
                 done = readerDone;
+
+                // Decode the chunk of the response we just read
                 const chunk = decoder.decode(value, { stream: true });
-    
-                // You can append the chunk to state to update it progressively
+
+                // Update the progress
                 setProgress(chunk.split('\n')[0]);
             }
-    
+
+            // Set the progress to 100% and mark the upload as processed
             setProgress('100')
             setProcessed(true)
         } catch (error) {

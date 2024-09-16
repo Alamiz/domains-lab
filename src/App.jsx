@@ -1,7 +1,7 @@
 import 'react-toastify/dist/ReactToastify.css';
 import { Header, FileUpload, FileDownload, HowItWorks, Footer } from './containers'
-import { NavBar, CTA } from './components'
-import { useState } from 'react'
+import { NavBar } from './components'
+import { ToastContainer } from 'react-toastify';
 
 const App = () => {
 
@@ -13,6 +13,7 @@ const App = () => {
       <FileDownload />
       <HowItWorks />
       <Footer />
+      <ToastContainer />
     </div>
   )
 }

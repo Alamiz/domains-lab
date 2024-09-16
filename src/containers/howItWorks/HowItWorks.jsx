@@ -5,7 +5,7 @@ import { MdSearch } from "react-icons/md";
 
 const HowItWorks = () => {
   return (
-    <section>
+    <section id="how-it-works">
       <div className="container flex flex-col items-center justify-center gap-8 bg-primary rounded p-6">
         <p className="text-4xl font-bold text-center text-white">How it works</p>
         <div className="flex flex-col gap-4 md:gap-8 md:grid md:grid-cols-3">
