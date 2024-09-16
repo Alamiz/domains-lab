@@ -24,6 +24,7 @@ import (
 type DomainRecord struct {
 	Domain     string
 	TxtRecords []string
+	FileName   string
 }
 
 // Global variables
@@ -150,6 +151,10 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 	ch := make(chan int, grMax) // Channel to control goroutine concurrency
 	var i int32                 // Use atomic counter for thread-safe increments
 
+	// Generate a unique file name by appending the current timestamp
+	timestamp := time.Now().Unix()
+	uniqueFileName := fmt.Sprintf("%s_%d", handler.Filename, timestamp)
+
 	// Process each line in the file
 	for _, domain := range domains {
 		// If the line is not empty then we process the domain
@@ -165,7 +170,7 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 			// Launch goroutine to process the domain
 			go func() {
 				defer func() { wg.Done(); <-ch }()
-				processDomain(domain)
+				processDomain(domain, uniqueFileName)
 			}()
 		}
 
@@ -187,7 +192,7 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 }
 
 // This function takes a domain name, looks up its TXT records, and stores them in the database if they exist.
-func processDomain(domain string) {
+func processDomain(domain string, fileName string) {
 	// Look up the TXT records for the domain
 	// txtRecords, err := lookupTXTWithAPI(domain)
 	// txtRecords, err := lookupTXTWithMiekg(domain)
@@ -204,7 +209,7 @@ func processDomain(domain string) {
 	}
 
 	// Creating a DomainRecord object to store in the database
-	record := DomainRecord{Domain: domain, TxtRecords: txtRecords}
+	record := DomainRecord{Domain: domain, TxtRecords: txtRecords, FileName: fileName}
 
 	// Inserting the record into the database
 	_, err = collection.InsertOne(context.TODO(), record)
@@ -236,7 +241,7 @@ func searchKeyword(w http.ResponseWriter, r *http.Request) {
 	defer cursor.Close(context.TODO())
 
 	// Store the results in a slice of strings
-	var domains []string
+	var domains []DomainRecord
 
 	// Interate over the results and decoding each record
 	for cursor.Next(context.TODO()) {
@@ -245,7 +250,7 @@ func searchKeyword(w http.ResponseWriter, r *http.Request) {
 			log.Fatal(err)
 		}
 
-		domains = append(domains, record.Domain)
+		domains = append(domains, record)
 	}
 
 	// If there are no results, return an error
@@ -267,7 +272,7 @@ func searchKeyword(w http.ResponseWriter, r *http.Request) {
 	defer writer.Flush()
 
 	for _, domain := range domains {
-		writer.Write([]string{domain})
+		writer.Write([]string{domain.Domain, domain.FileName})
 	}
 
 	// Send the filepath as a response
