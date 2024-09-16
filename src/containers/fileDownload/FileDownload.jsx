@@ -3,12 +3,22 @@ import { IoSearch } from "react-icons/io5";
 import { RiLoader3Fill } from "react-icons/ri";
 import { FaDownload } from "react-icons/fa6";
 import { useSearchKeyword } from "../../hooks/useSearchKeyword";
+import { Flip, toast, ToastContainer } from "react-toastify";
 
 const FileDownload = () => {
   const { filepath, error, searchKeyword, downloadFile, loading } = useSearchKeyword()
 
   const [keyWord, setKeyWord] = useState('')
   const [inputError, setInputError] = useState('')
+
+  const notify = () => toast.error(error,{
+    transition: Flip
+  });
+
+  useEffect(() => {
+    if (error)
+      notify();
+  }, [error])
 
   const search  = () => {
     if (!keyWord) {
@@ -50,6 +60,14 @@ const FileDownload = () => {
           <button className="flex bg-primary rounded-lg mt-3 px-3 py-3 text-white items-center justify-center gap-2" onClick={() => downloadFile(filepath)}>Download <FaDownload size={20} /></button>
         </div>}
       </div>
+
+      {/* Toast */}
+      <ToastContainer
+          position="bottom-right"
+          autoClose={2500}
+          closeOnClick
+          pauseOnHover
+          draggable />
     </section>
   )
 }

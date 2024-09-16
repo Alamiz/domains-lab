@@ -9,12 +9,13 @@ export const useSearchKeyword = () => {
     const searchKeyword = async (keyword) => {
         try {
             setLoading(true);
+            setError(null);
             const response = await axios.get(`${import.meta.env.VITE_DOMAINS_LAB_API}/search`, {
                 params: { keyword },
             });
             setFilepath(response.data.filepath);
         } catch (error) {
-            setError(error.message);
+            setError(error.response.data);
             console.log(error);
         } finally {
             setLoading(false);

@@ -248,6 +248,12 @@ func searchKeyword(w http.ResponseWriter, r *http.Request) {
 		domains = append(domains, record.Domain)
 	}
 
+	// If there are no results, return an error
+	if len(domains) == 0 {
+		http.Error(w, "No results found", http.StatusNotFound)
+		return
+	}
+
 	// Writing the results to a file for download
 	filePath := fmt.Sprintf("./results_%d.csv", time.Now().Unix())
 	file, err := os.Create(filePath)
