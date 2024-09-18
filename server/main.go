@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"mime/multipart"
@@ -32,6 +33,9 @@ type DomainRecord struct {
 // Global variables
 var collection *mongo.Collection
 
+// Global constants
+const baseDir = "./results"
+
 // Initialize MongoDB
 func initDB() {
 	// Load .env file
@@ -52,32 +56,28 @@ func initDB() {
 	}
 
 	db := client.Database("recordlookup")
-	// Ensure Indexes
-	createIndexes(db)
 
 	// Get the collection
-	collection = client.Database("recordlookup").Collection("domains")
+	collection = db.Collection("domains2")
 	if collection == nil {
 		log.Fatal("Failed to get collection 'domains'")
 	}
+
+	// Ensure Indexes
+	createIndexes(collection)
 }
 
 // Create indexes for the 'domains' collection
-func createIndexes(db *mongo.Database) {
-	collection := db.Collection("domains")
+func createIndexes(collection *mongo.Collection) {
 
-	// Create an index for the 'domain' field
-	domainIndex := mongo.IndexModel{
-		Keys: bson.M{"domain": 1}, // Indexing the 'domain' field in ascending order
-	}
-
-	// Create an index for the 'txtRecords' field
-	txtRecordsIndex := mongo.IndexModel{
-		Keys: bson.M{"txtRecords": "text"}, // Full-text search index on 'txtRecords'
+	// Create an index for the 'domain' and 'txtRecords' fields
+	indexes := []mongo.IndexModel{
+		{Keys: bson.M{"domain": 1}},
+		{Keys: bson.M{"txtrecords": "text"}},
 	}
 
 	// Ensure both indexes are created
-	_, err := collection.Indexes().CreateMany(context.TODO(), []mongo.IndexModel{domainIndex, txtRecordsIndex})
+	_, err := collection.Indexes().CreateMany(context.TODO(), indexes)
 	if err != nil {
 		log.Fatalf("Error creating indexes: %v\n", err)
 	}
@@ -140,6 +140,13 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Transfer-Encoding", "chunked")
 	w.Header().Set("Connection", "keep-alive")
 
+	// Flusher ensures that the response can be written in chunks
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
 	//Set a maximum amount of memory to be used when parsing the request body
 	r.ParseMultipartForm(10 << 20) // 10 << 20 equivalent to 10mb
 
@@ -162,59 +169,58 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Printf("Uploaded file: %v\n", handler.Filename)
 
-	// Create a scanner to read the file line by line
-	scanner := bufio.NewScanner(file)
-
-	// Creating a slice to store the domains
-	var domains []string
-	for scanner.Scan() {
-		// Trim the line to remove whitespace
-		domain := strings.TrimSpace(scanner.Text())
-		domains = append(domains, domain)
-	}
-
-	// Flusher ensures that the response can be written in chunks
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
-		return
-	}
-
-	const grMax = 100           // MAX number of goroutines running simultaneously
+	const grMax = 200           // MAX number of goroutines running simultaneously
 	var wg sync.WaitGroup       // WaitGroup to wait for all goroutines to finish
 	ch := make(chan int, grMax) // Channel to control goroutine concurrency
-	var i int32                 // Use atomic counter for thread-safe increments
+	var i int32                 // Counter for the number of processed domains
+	var domainsLength int32     // Length of the total domains in the file
+
+	// Create a scanner to read the file line by line
+	lengthScanner := bufio.NewScanner(file)
+	for lengthScanner.Scan() {
+		domainsLength++
+	}
+
+	// send the cursor back to the start of the file
+	file.Seek(0, 0)
 
 	// Generate a unique file name by appending the current timestamp
 	timestamp := time.Now().Unix()
 	uniqueFileName := fmt.Sprintf("%s_%d", handler.Filename, timestamp)
 
+	// Create a scanner to read the file line by line
+	scanner := bufio.NewScanner(file)
+
 	// Process each line in the file
-	for _, domain := range domains {
+	for scanner.Scan() {
+		// Trim the line to remove whitespace
+		domain := strings.TrimSpace(scanner.Text())
+
 		// If the line is not empty then we process the domain
-		if domain != "" {
-			wg.Add(1)
-			ch <- 1
-			percent := int(float64(i) / float64(len(domains)) * 100)
-			fmt.Printf("Processing domain: %v (%d%%) \n", domain, percent)
-
-			fmt.Fprintf(w, "%d\n", percent)
-			flusher.Flush() // Send the data to the client immediately
-
-			// Launch goroutine to process the domain
-			go func() {
-				defer func() { wg.Done(); <-ch }()
-				processDomain(domain, uniqueFileName)
-			}()
+		if domain == "" {
+			return
 		}
 
+		// Adding 1 to the wait gorup counter and sending a value to the channel buffer to start the goroutine
+		wg.Add(1)
+		ch <- 1
+
+		// Launch goroutine to process the domain
+		go func() {
+			defer func() {
+				wg.Done()
+				<-ch
+			}()
+			processDomain(domain, uniqueFileName)
+		}()
+
+		percent := int(float64(i) / float64(domainsLength) * 100)
+
+		fmt.Printf("Processing domain: %v (%d%%) \n", domain, percent)
+		fmt.Fprintf(w, "%d\n", percent)
+		flusher.Flush() // Send the data to the client after the domain is done processing
 		i++
 	}
-
-	wg.Wait()
-	fmt.Println("File processed successfully")
-	fmt.Fprintf(w, "100\n")
-	flusher.Flush() // Final flush to ensure the last chunk is sent
 
 	// Check if there were any errors while reading the file
 	if err := scanner.Err(); err != nil {
@@ -222,18 +228,43 @@ func uploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	wg.Wait()
+	fmt.Println("File processed successfully")
 	fmt.Fprintf(w, "File processed successfully")
+	fmt.Fprintf(w, "100\n")
+	flusher.Flush() // Final flush to ensure the last chunk is sent
 }
 
 // This function takes a domain name, looks up its TXT records, and stores them in the database if they exist.
 func processDomain(domain string, fileName string) {
-	// Look up the TXT records for the domain
-	// txtRecords, err := lookupTXTWithAPI(domain)
-	// txtRecords, err := lookupTXTWithMiekg(domain)
-	txtRecords, err := net.LookupTXT(domain)
+	const (
+		maxRetries = 3
+		retryDelay = 200 * time.Millisecond
+	)
+
+	var err error
+	var txtRecords []string
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		// Look up the TXT records for the domain
+		txtRecords, err = net.LookupTXT(domain)
+
+		if err != nil {
+			if strings.HasSuffix(err.Error(), "no such host") {
+				fmt.Printf("No such host: %v\n", domain)
+				return
+			}
+
+			fmt.Printf("Error processing TXT records for %v (attempt %d/%d): %v\n", domain, attempt+1, maxRetries, err)
+			time.Sleep(retryDelay)
+			continue
+		}
+
+		break
+	}
 
 	if err != nil {
-		fmt.Printf("Error processing TXT records for %v: %v\n", domain, err)
+		fmt.Printf("Failed to process TXT records for %v after %d attempts\n", domain, maxRetries)
 		return
 	}
 
@@ -263,7 +294,7 @@ func searchKeyword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// a filter variable to search the database
-	filter := bson.M{"txtrecords": bson.M{"$regex": keyword}}
+	filter := bson.M{"$text": bson.M{"$search": keyword}}
 
 	// Execute the search
 	cursor, err := collection.Find(context.TODO(), filter)
@@ -294,7 +325,8 @@ func searchKeyword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Writing the results to a file for download
-	filePath := fmt.Sprintf("./results_%d.csv", time.Now().Unix())
+	filePath := fmt.Sprintf("%v/results_%d.csv", baseDir, time.Now().Unix())
+	fmt.Println("File path:", filePath)
 	file, err := os.Create(filePath)
 	if err != nil {
 		http.Error(w, "Error creating file", http.StatusInternalServerError)
@@ -339,17 +371,38 @@ func getAllDomains(w http.ResponseWriter, r *http.Request) {
 
 // Downloading the processed file
 func downloadFile(w http.ResponseWriter, r *http.Request) {
-	//reading the query parameter
-	filePath := r.URL.Query().Get("file")
-
-	// finding the file
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		http.Error(w, "File not found", http.StatusNotFound)
+	filePath, err := getFilePath(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	// returning the file
+	err = serveFile(w, r, filePath)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+// Get the file path and check if it exists
+func getFilePath(r *http.Request) (string, error) {
+	filePath := r.URL.Query().Get("file")
+	if !strings.HasPrefix(filePath, baseDir) {
+		return "", errors.New("invalid file path")
+	}
+	return filePath, nil
+}
+
+// Send the file through the http response
+func serveFile(w http.ResponseWriter, r *http.Request, filePath string) error {
+	f, err := os.Open(filePath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
 	http.ServeFile(w, r, filePath)
+	return nil
 }
 
 // Validate file type
