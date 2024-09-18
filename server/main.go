@@ -58,7 +58,7 @@ func initDB() {
 	db := client.Database("recordlookup")
 
 	// Get the collection
-	collection = db.Collection("domains2")
+	collection = db.Collection("domains")
 	if collection == nil {
 		log.Fatal("Failed to get collection 'domains'")
 	}
